@@ -3,7 +3,6 @@ import { defineConfig } from 'astro/config';
 //import node from "@astrojs/node";
 import tailwindcss from '@tailwindcss/vite';
 
-import node from '@astrojs/node';
 
 import vercel from '@astrojs/vercel';
 
