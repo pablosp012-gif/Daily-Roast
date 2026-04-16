@@ -1,0 +1,33 @@
+---
+// src/pages/index.astro
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.PUBLIC_SUPABASE_URL,
+  import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+);
+
+// Traemos los roasts con el nombre del usuario que los subió
+const { data: roasts, error } = await supabase
+  .from("roasts")
+  .select("*, profiles(username)")
+  .order("created_at", { ascending: false });
+---
+
+<html>
+  <body>
+    <h1>🔥 The Daily Roast</h1>
+    <div class="grid">
+      {
+        roasts?.map((roast) => (
+          <div class="card">
+            <img src={roast.image_url} alt={roast.title} />
+            <h2>{roast.title}</h2>
+            <p>Subido por: {roast.profiles.username}</p>
+            {/* Aquí iría el botón de votar */}
+          </div>
+        ))
+      }
+    </div>
+  </body>
+</html>
