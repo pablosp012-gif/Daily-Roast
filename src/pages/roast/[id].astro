@@ -1,0 +1,259 @@
+---
+export const prerender = false;
+
+import Layout from "../../layouts/Layout.astro";
+import { createClient } from "@supabase/supabase-js";
+
+const { id } = Astro.params;
+
+const supabase = createClient(
+  import.meta.env.PUBLIC_SUPABASE_URL,
+  import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+);
+
+const { data: roast } = await supabase
+  .from("roasts")
+  .select("*")
+  .eq("id", id)
+  .single();
+
+const { data: comments } = await supabase
+  .from("comments")
+  .select("*")
+  .eq("roast_id", id)
+  .order("created_at", { ascending: false });
+
+if (!roast) return Astro.redirect("/404");
+---
+
+<Layout title={`${roast.title} | Daily Trash 🗑️`}>
+  <div class="min-h-screen bg-[#0a0a0a] text-white selection:bg-orange-500/30">
+    <div
+      class="fixed top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-orange-600/5 blur-[120px] -z-10"
+    >
+    </div>
+
+    <main class="max-w-5xl mx-auto p-4 md:p-8">
+      <a
+        href="/"
+        class="inline-flex items-center gap-2 text-gray-500 hover:text-orange-500 transition-colors mb-8 group"
+      >
+        <span class="text-2xl group-hover:-translate-x-1 transition-transform"
+          >←</span
+        >
+        <span class="font-bold uppercase tracking-[0.2em] text-[10px]"
+          >Volver al basurero</span
+        >
+      </a>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div class="space-y-6">
+          <div
+            class="rounded-3xl overflow-hidden border border-white/5 bg-[#111] shadow-2xl"
+          >
+            <img
+              src={roast.image_url}
+              alt={roast.title}
+              class="w-full h-auto opacity-90"
+            />
+          </div>
+          <div class="flex justify-between items-center gap-4">
+            <h1
+              class="text-4xl font-black italic uppercase break-words tracking-tighter"
+            >
+              {roast.title}
+            </h1>
+
+            <button
+              id="detail-vote-btn"
+              data-id={roast.id}
+              data-votes={roast.votes_count || 0}
+              class="flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-full font-black transition-all active:scale-90 hover:bg-white/10"
+            >
+              <span>💀</span>
+              <span id="detail-count">{roast.votes_count || 0}</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="bg-[#111]/50 backdrop-blur-sm rounded-3xl p-8 border border-white/5 flex flex-col h-fit"
+        >
+          <h2
+            class="text-2xl font-bold mb-6 italic uppercase tracking-tight text-orange-500"
+          >
+            Comentarios
+          </h2>
+
+          <form id="comment-form" class="mb-8 space-y-4">
+            <input type="hidden" id="roast-id" value={id} />
+            <textarea
+              id="comment-text"
+              placeholder="Dinos por qué esto es pura basura..."
+              class="w-full bg-black border border-white/10 rounded-2xl p-4 focus:outline-none focus:border-orange-500 transition-colors resize-none h-24 text-sm text-white"
+              required></textarea>
+            <button
+              id="comment-btn"
+              class="w-full bg-orange-500 text-black font-black py-3 rounded-xl hover:bg-orange-400 transition-colors disabled:opacity-50 uppercase text-sm tracking-widest"
+            >
+              Publicar Crítica
+            </button>
+          </form>
+
+          <div
+            class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar mb-8"
+          >
+            {
+              comments?.map((comment) => (
+                <div class="bg-white/[0.03] p-4 rounded-2xl border border-white/5 hover:border-orange-500/30 transition-colors">
+                  <p class="text-gray-300 text-sm leading-relaxed">
+                    {comment.content}
+                  </p>
+                  <span class="text-[10px] text-gray-600 mt-2 block italic font-mono uppercase tracking-tighter">
+                    {new Date(comment.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))
+            }
+            {
+              comments?.length === 0 && (
+                <p class="text-gray-600 italic text-center text-sm py-4">
+                  Nadie ha tirado basura todavía...
+                </p>
+              )
+            }
+          </div>
+
+          <div class="mt-auto pt-6 border-t border-white/5 space-y-4">
+            <p
+              class="text-[9px] text-gray-600 leading-tight uppercase tracking-widest text-center opacity-60"
+            >
+              UGC Disclaimer: Contenido generado por usuarios. Daily Trash no se
+              hace responsable de las opiniones vertidas.
+            </p>
+            <button
+              id="report-btn"
+              class="w-full text-[10px] text-gray-500 hover:text-red-500 transition-all uppercase font-black tracking-[0.2em] flex items-center justify-center gap-2"
+            >
+              🚩 Reportar contenido
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<script>
+  import { createClient } from "@supabase/supabase-js";
+  const supabase = createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+  );
+
+  const roastId = (document.getElementById("roast-id") as HTMLInputElement)
+    .value;
+
+  // Lógica de Comentarios
+  const form = document.getElementById("comment-form") as HTMLFormElement;
+  const commentBtn = document.getElementById(
+    "comment-btn",
+  ) as HTMLButtonElement;
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const content = (
+      document.getElementById("comment-text") as HTMLTextAreaElement
+    ).value;
+    if (!content) return;
+
+    commentBtn.disabled = true;
+    commentBtn.innerText = "ENVIANDO...";
+
+    const { error } = await supabase
+      .from("comments")
+      .insert([{ roast_id: roastId, content: content }]);
+
+    if (error) {
+      alert("Error: " + error.message);
+      commentBtn.disabled = false;
+      commentBtn.innerText = "PUBLICAR CRÍTICA";
+    } else {
+      location.reload();
+    }
+  });
+
+  // Lógica de Votos
+  const voteBtn = document.getElementById(
+    "detail-vote-btn",
+  ) as HTMLButtonElement;
+  const countLabel = document.getElementById("detail-count");
+
+  if (voteBtn) {
+    if (localStorage.getItem(`voted-${roastId}`)) {
+      voteBtn.classList.add("bg-orange-500", "text-black");
+      voteBtn.classList.remove("bg-white/5");
+    }
+
+    voteBtn.addEventListener("click", async () => {
+      let currentVotes = parseInt(voteBtn.getAttribute("data-votes") || "0");
+      const hasVoted = localStorage.getItem(`voted-${roastId}`);
+      const newVotes = hasVoted ? currentVotes - 1 : currentVotes + 1;
+
+      if (countLabel) countLabel.textContent = newVotes.toString();
+      voteBtn.setAttribute("data-votes", newVotes.toString());
+
+      if (hasVoted) {
+        localStorage.removeItem(`voted-${roastId}`);
+        voteBtn.classList.remove("bg-orange-500", "text-black");
+        voteBtn.classList.add("bg-white/5");
+      } else {
+        localStorage.setItem(`voted-${roastId}`, "true");
+        voteBtn.classList.add("bg-orange-500", "text-black");
+        voteBtn.classList.remove("bg-white/5");
+      }
+
+      await supabase
+        .from("roasts")
+        .update({ votes_count: newVotes })
+        .eq("id", roastId);
+    });
+  }
+
+  // Lógica de Reporte
+  const reportBtn = document.getElementById("report-btn");
+  reportBtn?.addEventListener("click", async () => {
+    const confirmar = confirm(
+      "¿Reportar esta imagen? Si acumula 3 reportes será eliminada.",
+    );
+    if (confirmar) {
+      const { data } = await supabase
+        .from("roasts")
+        .select("reports")
+        .eq("id", roastId)
+        .single();
+      const newReports = (data?.reports || 0) + 1;
+      const { error } = await supabase
+        .from("roasts")
+        .update({ reports: newReports })
+        .eq("id", roastId);
+      if (!error) {
+        alert("Reporte enviado. Gracias por limpiar el basurero.");
+        window.location.href = "/";
+      }
+    }
+  });
+</script>
+
+<style>
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+  }
+</style>

@@ -1,0 +1,143 @@
+---
+// src/components/UploadForm.astro
+---
+
+<div
+  class="max-w-lg mx-auto bg-[#151515] border border-white/10 p-8 rounded-3xl shadow-2xl"
+>
+  <form id="upload-form" class="space-y-6">
+    <div>
+      <label
+        class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2"
+      >
+        ¿Qué estamos viendo?
+      </label>
+      <input
+        type="text"
+        id="title"
+        placeholder="Título del desastre..."
+        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 transition-colors"
+        required
+      />
+    </div>
+
+    <div class="relative group">
+      <label
+        class="flex flex-col items-center justify-center w-full min-h-32 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:bg-white/5 hover:border-orange-500/50 transition-all overflow-hidden"
+      >
+        <div id="preview-container" class="hidden w-full h-full">
+          <img id="image-preview" src="" class="w-full h-48 object-cover" />
+          <div
+            class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <p class="text-white text-xs font-bold uppercase">Cambiar imagen</p>
+          </div>
+        </div>
+
+        <div
+          id="upload-placeholder"
+          class="flex flex-col items-center justify-center pt-5 pb-6"
+        >
+          <p class="text-sm text-gray-400">
+            Click para subir <span class="text-orange-500 font-bold"
+              >la evidencia</span
+            >
+          </p>
+        </div>
+
+        <input
+          type="file"
+          id="image"
+          class="hidden"
+          accept="image/*"
+          required
+        />
+      </label>
+    </div>
+
+    <button
+      type="submit"
+      id="submit-btn"
+      class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-900/20"
+    >
+      PUBLICAR EVIDENCIA 🔥
+    </button>
+  </form>
+</div>
+
+<script>
+  import { createClient } from "@supabase/supabase-js";
+
+  const supabase = createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+  );
+
+  const form = document.getElementById("upload-form") as HTMLFormElement;
+  const btn = document.getElementById("submit-btn") as HTMLButtonElement;
+  const fileInput = document.getElementById("image") as HTMLInputElement;
+  const previewContainer = document.getElementById("preview-container");
+  const placeholder = document.getElementById("upload-placeholder");
+  const previewImg = document.getElementById(
+    "image-preview",
+  ) as HTMLImageElement;
+
+  // Lógica para previsualizar la imagen
+  fileInput?.addEventListener("change", (e) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (f) => {
+        if (previewImg && previewContainer && placeholder) {
+          previewImg.src = f.target?.result as string;
+          previewContainer.classList.remove("hidden");
+          placeholder.classList.add("hidden");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Lógica de subida
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.innerText = "SUBIENDO...";
+
+    const titleInput = document.getElementById("title") as HTMLInputElement;
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      btn.disabled = false;
+      return;
+    }
+
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const { error: storageError } = await supabase.storage
+        .from("roasts")
+        .upload(fileName, file);
+      if (storageError) throw storageError;
+
+      const { data: urlData } = supabase.storage
+        .from("roasts")
+        .getPublicUrl(fileName);
+
+      const { error: dbError } = await supabase.from("roasts").insert([
+        {
+          title: titleInput.value,
+          image_url: urlData.publicUrl,
+        },
+      ]);
+
+      if (dbError) throw dbError;
+      location.reload();
+    } catch (err: any) {
+      alert(err.message);
+      btn.disabled = false;
+      btn.innerText = "REINTENTAR";
+    }
+  });
+</script>
